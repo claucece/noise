@@ -2,6 +2,7 @@ package noise
 
 import (
 	"encoding/hex"
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -182,6 +183,62 @@ func (NoiseSuite) TestXXHFSNewHopeSimple(c *C) {
 
 	expected, _ := hex.DecodeString("fc97bf62518380bf1e7971550490958c58bb282e389affe0201802328933773c53f613776025cbd48633d236903df163f0fa8c47f1ad177aa63f909b34bdeb7c")
 	c.Assert(msg, DeepEquals, expected)
+}
+
+func (NoiseSuite) TestXXHFSKyber1024(c *C) {
+	cs := NewCipherSuiteHFS(DH25519, CipherAESGCM, HashSHA256, HFSKyber)
+	rngI := new(RandomInc)
+	rngR := new(RandomInc)
+	*rngR = 1
+
+	staticI, _ := cs.GenerateKeypair(rngI)
+	staticR, _ := cs.GenerateKeypair(rngR)
+
+	hsI, _ := NewHandshakeState(Config{
+		CipherSuite:   cs,
+		Random:        rngI,
+		Pattern:       HandshakeXXhfs,
+		Initiator:     true,
+		StaticKeypair: staticI,
+	})
+	hsR, _ := NewHandshakeState(Config{
+		CipherSuite:   cs,
+		Random:        rngR,
+		Pattern:       HandshakeXXhfs,
+		StaticKeypair: staticR,
+	})
+
+	// -> e, f
+	msg, _, _, _ := hsI.WriteMessage(nil, []byte("abc"))
+	c.Assert(msg, HasLen, 1475)
+	res, _, _, err := hsR.ReadMessage(nil, msg)
+	c.Assert(err, IsNil)
+	c.Assert(string(res), Equals, "abc")
+
+	// plain XX without HFS:
+	// -> e
+	// <- e, ee, s, es
+	// -> s, se
+
+	// XXX kyber1024 ciphertext is size 1504
+	// <- e, f, ee, ff, s, es
+	msg, _, _, _ = hsR.WriteMessage(nil, []byte("defg"))
+	fmt.Printf("msg len %d\n", len(msg))
+	// XXX c.Assert(msg, HasLen, XXX)
+	res, _, _, err = hsI.ReadMessage(nil, msg)
+	c.Assert(err, IsNil)
+	c.Assert(string(res), Equals, "defg")
+
+	// -> s, se
+	msg, _, _, _ = hsI.WriteMessage(nil, nil)
+	c.Assert(msg, HasLen, 64)
+	res, _, _, err = hsR.ReadMessage(nil, msg)
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 0)
+
+	// XXX
+	//expected, _ := hex.DecodeString("fc97bf62518380bf1e7971550490958c58bb282e389affe0201802328933773c53f613776025cbd48633d236903df163f0fa8c47f1ad177aa63f909b34bdeb7c")
+	//c.Assert(msg, DeepEquals, expected)
 }
 
 func (NoiseSuite) TestIK(c *C) {
