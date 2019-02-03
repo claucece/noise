@@ -82,9 +82,9 @@ func (k *keyKyberResponder) Public() []byte {
 func (h hfsKyber) GenerateKeypairF(rng io.Reader, rf []byte) HFSKey {
 	if rf != nil {
 		if len(rf) != h.FLen1() {
-			panic("noise/hfs: rf is not Kyber768.PublicKeySize")
+			panic("noise/hfs: rf is not Kyber1024.PublicKeySize")
 		}
-		initiatorPk, err := kyber.Kyber768.PublicKeyFromBytes(rf)
+		initiatorPk, err := kyber.Kyber1024.PublicKeyFromBytes(rf)
 		if err != nil {
 			panic("noise/hfs: rf deserialization error: " + err.Error())
 		}
@@ -94,7 +94,7 @@ func (h hfsKyber) GenerateKeypairF(rng io.Reader, rf []byte) HFSKey {
 			panic("noise/hfs: Kyber KEMEncrypt error: " + err.Error())
 		}
 
-		pubKey, err := kyber.Kyber768.PublicKeyFromBytes(cipherText)
+		pubKey, err := kyber.Kyber1024.PublicKeyFromBytes(cipherText)
 		if err != nil {
 			panic("noise/hfs: rf deserialization error: " + err.Error())
 		}
@@ -106,9 +106,9 @@ func (h hfsKyber) GenerateKeypairF(rng io.Reader, rf []byte) HFSKey {
 	}
 
 	// Generate the keypair as Initiator.
-	pubKey, privKey, err := kyber.Kyber768.GenerateKeyPair(rng)
+	pubKey, privKey, err := kyber.Kyber1024.GenerateKeyPair(rng)
 	if err != nil {
-		panic("noise/hfs: kyber.Kyber768.GenerateKeyPair(): " + err.Error())
+		panic("noise/hfs: kyber.Kyber1024.GenerateKeyPair(): " + err.Error())
 	}
 
 	return &keyKyberInitiator{
@@ -121,7 +121,7 @@ func (h hfsKyber) FF(keypair HFSKey, pubkey []byte) []byte {
 	switch k := keypair.(type) {
 	case *keyKyberInitiator:
 		if len(pubkey) != h.FLen1() {
-			panic("noise/hfs: pubkey is not Kyber768.PublicKeySize")
+			panic("noise/hfs: pubkey is not Kyber1024.PublicKeySize")
 		}
 		return k.privKey.KEMDecrypt(pubkey)
 	case *keyKyberResponder:
@@ -132,11 +132,11 @@ func (h hfsKyber) FF(keypair HFSKey, pubkey []byte) []byte {
 }
 
 func (hfsKyber) FLen1() int {
-	return kyber.Kyber768.PublicKeySize()
+	return kyber.Kyber1024.PublicKeySize()
 }
 
 func (hfsKyber) FLen2() int {
-	return kyber.Kyber768.CipherTextSize()
+	return kyber.Kyber1024.CipherTextSize()
 }
 
 func (hfsKyber) FLen() int {
