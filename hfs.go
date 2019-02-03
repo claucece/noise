@@ -19,6 +19,7 @@ package noise
 import (
 	"io"
 
+	"git.schwanenlied.me/yawning/kyber"
 	"git.schwanenlied.me/yawning/newhope.git"
 )
 
@@ -145,6 +146,97 @@ func (hfsNewHopeSimple) FLen() int {
 
 func (hfsNewHopeSimple) HFSName() string {
 	return "NewHopeSimple"
+}
+
+// HFSKyber is the Kyber crypto_kem_keypair HFS function.
+var HFSKyber HFSFunc = hfsKyber{}
+
+type hfsKyber struct{}
+
+type keyKyberInitiator struct {
+	privKey *kyber.PrivateKey
+	pubKey  *kyber.PublicKey
+}
+
+func (k *keyKyberInitiator) Public() []byte {
+	return k.pubKey.Bytes()
+}
+
+type keyKyberResponder struct {
+	pubKey *kyber.PublicKey
+	shared []byte
+}
+
+func (k *keyKyberResponder) Public() []byte {
+	return k.pubKey.Bytes()
+}
+
+func (h hfsKyber) GenerateKeypairF(rng io.Reader, rf []byte) HFSKey {
+	if rf != nil {
+		if len(rf) != h.FLen1() {
+			panic("noise/hfs: rf is not Kyber1024.PublicKeySize")
+		}
+		initiatorPk, err := kyber.Kyber1024.PublicKeyFromBytes(rf)
+		if err != nil {
+			panic("noise/hfs: rf deserialization error: " + err.Error())
+		}
+
+		cipherText, shared, err := initiatorPk.KEMEncrypt(rng)
+		if err != nil {
+			panic("noise/hfs: Kyber KEMEncrypt error: " + err.Error())
+		}
+
+		pubKey, err := kyber.Kyber1024.PublicKeyFromBytes(cipherText[:h.FLen1()])
+		if err != nil {
+			panic("noise/hfs: rf deserialization error: " + err.Error())
+		}
+
+		return &keyKyberResponder{
+			pubKey: pubKey,
+			shared: shared,
+		}
+	}
+
+	// Generate the keypair as Initiator.
+	pubKey, privKey, err := kyber.Kyber1024.GenerateKeyPair(rng)
+	if err != nil {
+		panic("noise/hfs: kyber.Kyber1024.GenerateKeyPair(): " + err.Error())
+	}
+
+	return &keyKyberInitiator{
+		privKey: privKey,
+		pubKey:  pubKey,
+	}
+}
+
+func (h hfsKyber) FF(keypair HFSKey, pubkey []byte) []byte {
+	switch k := keypair.(type) {
+	case *keyKyberInitiator:
+		if len(pubkey) != h.FLen2() {
+			panic("noise/hfs: pubkey is not Kyber1024.CipherTextSize")
+		}
+		return k.privKey.KEMDecrypt(pubkey)
+	case *keyKyberResponder:
+		return k.shared
+	default:
+	}
+	panic("noise/fs: FF(): unsupported keypair type")
+}
+
+func (hfsKyber) FLen1() int {
+	return kyber.Kyber1024.PublicKeySize()
+}
+
+func (hfsKyber) FLen2() int {
+	return kyber.Kyber1024.CipherTextSize()
+}
+
+func (hfsKyber) FLen() int {
+	return kyber.SymSize
+}
+
+func (hfsKyber) HFSName() string {
+	return "Kyber1024"
 }
 
 var hfsNull HFSFunc = hfsNullImpl{}
